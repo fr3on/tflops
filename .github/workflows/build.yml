@@ -27,8 +27,8 @@ jobs:
           path: tflops-api
 
   build-plugin:
-    name: Build Rust Plugin
-    runs-on: ubuntu-latest
+    name: Build Rust Plugin (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
