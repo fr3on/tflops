@@ -55,7 +55,19 @@ struct FinalReport {
 }
 
 fn detect_forensics(gpus: &[gpu::GpuInfo]) -> (String, String, u32, f64) {
-    let country_code = "US".to_string();
+    // Attempt dynamic geolocation via IP
+    let country_code = if let Ok(client) = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(2))
+        .build() {
+        client.get("https://ipapi.co/country/")
+            .send()
+            .map(|res| res.text().unwrap_or_else(|_| "US".to_string()))
+            .unwrap_or_else(|_| "US".to_string())
+            .trim()
+            .to_uppercase()
+    } else {
+        "US".to_string()
+    };
 
     let manufacturer = if !gpus.is_empty() {
         gpus[0].vendor.clone()
@@ -76,6 +88,10 @@ fn detect_forensics(gpus: &[gpu::GpuInfo]) -> (String, String, u32, f64) {
         "FR" => 50.0,
         "CN" => 600.0,
         "DE" => 350.0,
+        "GB" => 250.0,
+        "CA" => 150.0,
+        "AU" => 500.0,
+        "BR" => 120.0,
         _ => 450.0,
     };
 
