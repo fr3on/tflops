@@ -120,15 +120,19 @@ jobs:
       - name: Build website
         working-directory: ./website
         run: npm run build
-      - name: Deploy via SSH
-        uses: easingthemes/ssh-deploy@main
-        with:
-          PASSWORD: ${{ secrets.SSH_PASSWORD }}
-          REMOTE_PORT: ${{ secrets.DEPLOY_PORT || 22 }}
-          ARGS: "-avzr --delete"
-          SOURCE: "website/out/"
+      - name: Install sshpass
+        run: sudo apt-get update && sudo apt-get install -y sshpass
+
+      - name: Deploy via Rsync
+        env:
+          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
           REMOTE_HOST: ${{ secrets.DEPLOY_HOST }}
           REMOTE_USER: ${{ secrets.DEPLOY_USER }}
-          TARGET: ${{ secrets.DEPLOY_PATH }}
-          EXCLUDE: "/dist/, /node_modules/"
+          REMOTE_PORT: ${{ secrets.DEPLOY_PORT || 22 }}
+          REMOTE_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          sshpass -p "$SSH_PASSWORD" rsync -avzr --delete \
+            -e "ssh -p $REMOTE_PORT -o StrictHostKeyChecking=no" \
+            ./website/out/ \
+            $REMOTE_USER@$REMOTE_HOST:$REMOTE_PATH
 
