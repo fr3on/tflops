@@ -104,6 +104,13 @@ export default function Leaderboard({ data, onInspect, selectedId }: Leaderboard
                     >
                       <Search size={14} />
                     </button>
+                    <a href={`/report?id=${item.id}`} target="_blank" rel="noopener noreferrer"
+                      title="View Full Report"
+                      className={`p-2 rounded border transition-all ${isSelected ? 'bg-sage text-white border-sage' : 'border-tech text-foreground/20 hover:border-sage hover:text-sage'}`}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <FileText size={14} />
+                    </a>
                   </div>
                 </td>
               </tr>
