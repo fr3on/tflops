@@ -235,7 +235,7 @@ fn main() {
 
     // 6. Submission Logic
     if !args.no_submit {
-        let env_url = std::env::var("TFLOPS_API_URL").unwrap_or_else(|_| "http://localhost/v1/submit".to_string());
+        let env_url = std::env::var("TFLOPS_API_URL").unwrap_or_else(|_| "https://api.tflops.world/v1/submit".to_string());
         let url = args.api_url.unwrap_or(env_url);
 
         if !args.json {
