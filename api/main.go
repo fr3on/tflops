@@ -150,7 +150,9 @@ func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "80"
-	}
+	}	// Initial aggregation on startup
+	go RefreshCache()
+
 	r.Run(":" + port)
 }
 
