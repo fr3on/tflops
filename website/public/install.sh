@@ -49,11 +49,32 @@ echo -e "Target Location:      ${GREEN}${INSTALL_DIR}${NC}"
 # --- Installation ---
 TMP_BIN="./${BINARY_NAME}.tmp"
 
-echo -e "\nDownloading TFLOPS Intelligence Engine..."
-if ! curl -L -f -o "$TMP_BIN" "$DOWNLOAD_URL"; then
-    echo -e "${RED}Error: Failed to download binary for your platform.${NC}"
-    echo "Double check that the binary is hosted at $DOWNLOAD_URL"
+# Downloader Detection
+DOWNLOADER=""
+if command -v curl >/dev/null 2>&1; then
+    DOWNLOADER="curl"
+elif command -v wget >/dev/null 2>&1; then
+    DOWNLOADER="wget"
+else
+    echo -e "${RED}Error: Neither 'curl' nor 'wget' was found.${NC}"
+    echo -e "Please install a downloader to continue:"
+    echo -e "  - Debian/Ubuntu: ${BLUE}sudo apt install curl${NC}"
+    echo -e "  - RedHat/Fedora: ${BLUE}sudo dnf install curl${NC}"
+    echo -e "  - macOS:         ${BLUE}brew install curl${NC}"
     exit 1
+fi
+
+echo -e "\nDownloading TFLOPS Intelligence Engine via ${GREEN}${DOWNLOADER}${NC}..."
+if [ "$DOWNLOADER" == "curl" ]; then
+    if ! curl -L -f -o "$TMP_BIN" "$DOWNLOAD_URL"; then
+        echo -e "${RED}Error: Failed to download binary.${NC}"
+        exit 1
+    fi
+else
+    if ! wget -O "$TMP_BIN" "$DOWNLOAD_URL"; then
+        echo -e "${RED}Error: Failed to download binary.${NC}"
+        exit 1
+    fi
 fi
 
 if [[ "$OS_TYPE" != "windows" ]]; then

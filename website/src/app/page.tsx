@@ -40,9 +40,14 @@ export default function Home() {
   const leaderboardRef = useRef<HTMLDivElement>(null);
   const [inspectedItem, setInspectedItem] = useState<any | null>(null);
   const [copied, setCopied] = useState(false);
+  const [selectedShell, setSelectedShell] = useState<"unix" | "powershell">("unix");
+
+  const installCommand = selectedShell === "unix" 
+    ? "curl -sSL https://tflops.world/install.sh | bash"
+    : "iwr -useb https://tflops.world/install.ps1 | iex";
 
   const copyCommand = () => {
-    navigator.clipboard.writeText("curl -sSL https://tflops.world/install.sh | bash");
+    navigator.clipboard.writeText(installCommand);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -280,17 +285,26 @@ export default function Home() {
             transition={{ delay: 0.2 }}
             className="mt-16 w-full max-w-xl group relative"
           >
+            <div className="flex items-center gap-2 mb-3">
+              <button 
+                onClick={() => setSelectedShell("unix")}
+                className={`text-[9px] uppercase tracking-widest px-3 py-1 rounded-full border transition-all cursor-pointer ${selectedShell === "unix" ? "bg-sage text-black border-sage" : "text-foreground/40 border-tech/50 hover:border-sage/50"}`}
+              >
+                Unix Shell
+              </button>
+              <button 
+                onClick={() => setSelectedShell("powershell")}
+                className={`text-[9px] uppercase tracking-widest px-3 py-1 rounded-full border transition-all cursor-pointer ${selectedShell === "powershell" ? "bg-sage text-black border-sage" : "text-foreground/40 border-tech/50 hover:border-sage/50"}`}
+              >
+                PowerShell
+              </button>
+            </div>
             <div className="relative flex items-center bg-[#1a1a1a] text-white p-4 rounded-lg border border-white/10 overflow-hidden">
               <div className="flex items-center gap-3 shrink-0 mr-4 border-r border-white/10 pr-4">
                 <Terminal size={18} className="text-sage" />
-                <div className="flex gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-red-500/50" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/50" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-green-500/50" />
-                </div>
               </div>
               <code className="text-sm font-mono text-sage/90 flex-1 truncate text-left select-all">
-                curl -sSL https://tflops.world/install.sh | bash
+                {installCommand}
               </code>
               <button
                 onClick={copyCommand}
