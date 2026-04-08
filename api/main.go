@@ -173,10 +173,16 @@ func RefreshCache() {
 
 	if DBDialect == DialectPostgres {
 		globalQuery = `
-			WITH vendor_ranks AS (
+			WITH device_max AS (
+				SELECT DISTINCT ON (device_hash) 
+					country_code, manufacturer, gpu_tflops_f32, estimated_power_w, carbon_intensity, ram_total_gb
+				FROM submissions
+				ORDER BY device_hash, gpu_tflops_f32 DESC
+			),
+			vendor_ranks AS (
 				SELECT country_code, manufacturer, COUNT(*) as cnt,
 				ROW_NUMBER() OVER (PARTITION BY country_code ORDER BY COUNT(*) DESC) as rn
-				FROM submissions
+				FROM device_max
 				GROUP BY country_code, manufacturer
 			)
 			INSERT INTO global_stats_cache (
@@ -184,18 +190,18 @@ func RefreshCache() {
 				avg_power, avg_carbon, avg_ram, top_vendor, updated_at
 			)
 			SELECT 
-				s.country_code, 
-				AVG(s.gpu_tflops_f32), 
-				COUNT(s.id), 
-				MAX(s.gpu_tflops_f32),
-				AVG(s.estimated_power_w),
-				AVG(s.carbon_intensity),
-				AVG(s.ram_total_gb),
+				d.country_code, 
+				AVG(d.gpu_tflops_f32), 
+				COUNT(*), 
+				MAX(d.gpu_tflops_f32),
+				AVG(d.estimated_power_w),
+				AVG(d.carbon_intensity),
+				AVG(d.ram_total_gb),
 				vr.manufacturer,
 				CURRENT_TIMESTAMP
-			FROM submissions s
-			LEFT JOIN vendor_ranks vr ON s.country_code = vr.country_code AND vr.rn = 1
-			GROUP BY s.country_code, vr.manufacturer
+			FROM device_max d
+			LEFT JOIN vendor_ranks vr ON d.country_code = vr.country_code AND vr.rn = 1
+			GROUP BY d.country_code, vr.manufacturer
 			ON CONFLICT (country_code) DO UPDATE SET
 				avg_score = EXCLUDED.avg_score,
 				device_count = EXCLUDED.device_count,
@@ -207,13 +213,19 @@ func RefreshCache() {
 				updated_at = EXCLUDED.updated_at`
 
 		historyQuery = `
+			WITH unique_monthly AS (
+				SELECT DISTINCT ON (device_hash, to_char(timestamp_utc, 'YYYY-MM')) 
+					to_char(timestamp_utc, 'YYYY-MM') as m, gpu_tflops_f32
+				FROM submissions
+				ORDER BY device_hash, to_char(timestamp_utc, 'YYYY-MM'), gpu_tflops_f32 DESC
+			)
 			INSERT INTO history_stats_cache (month, total_tflops, device_count, updated_at)
 			SELECT 
-				to_char(timestamp_utc, 'YYYY-MM') as m,
+				m,
 				SUM(gpu_tflops_f32),
-				COUNT(id),
+				COUNT(*),
 				CURRENT_TIMESTAMP
-			FROM submissions
+			FROM unique_monthly
 			GROUP BY m
 			ON CONFLICT (month) DO UPDATE SET
 				total_tflops = EXCLUDED.total_tflops,
@@ -221,10 +233,16 @@ func RefreshCache() {
 				updated_at = EXCLUDED.updated_at`
 	} else {
 		globalQuery = `
-			WITH vendor_ranks AS (
+			WITH device_max AS (
+				SELECT country_code, manufacturer, gpu_tflops_f32, estimated_power_w, carbon_intensity, ram_total_gb
+				FROM submissions
+				GROUP BY device_hash
+				HAVING gpu_tflops_f32 = MAX(gpu_tflops_f32)
+			),
+			vendor_ranks AS (
 				SELECT country_code, manufacturer, COUNT(*) as cnt,
 				ROW_NUMBER() OVER (PARTITION BY country_code ORDER BY COUNT(*) DESC) as rn
-				FROM submissions
+				FROM device_max
 				GROUP BY country_code, manufacturer
 			)
 			REPLACE INTO global_stats_cache (
@@ -232,25 +250,25 @@ func RefreshCache() {
 				avg_power, avg_carbon, avg_ram, top_vendor, updated_at
 			)
 			SELECT 
-				s.country_code, 
-				AVG(s.gpu_tflops_f32), 
-				COUNT(s.id), 
-				MAX(s.gpu_tflops_f32),
-				AVG(s.estimated_power_w),
-				AVG(s.carbon_intensity),
-				AVG(s.ram_total_gb),
+				d.country_code, 
+				AVG(d.gpu_tflops_f32), 
+				COUNT(*), 
+				MAX(d.gpu_tflops_f32),
+				AVG(d.estimated_power_w),
+				AVG(d.carbon_intensity),
+				AVG(d.ram_total_gb),
 				vr.manufacturer,
 				DATETIME('now')
-			FROM submissions s
-			LEFT JOIN vendor_ranks vr ON s.country_code = vr.country_code AND vr.rn = 1
-			GROUP BY s.country_code`
+			FROM device_max d
+			LEFT JOIN vendor_ranks vr ON d.country_code = vr.country_code AND vr.rn = 1
+			GROUP BY d.country_code`
 
 		historyQuery = `
 			REPLACE INTO history_stats_cache (month, total_tflops, device_count, updated_at)
 			SELECT 
 				strftime('%Y-%m', timestamp_utc) as m,
 				SUM(gpu_tflops_f32),
-				COUNT(id),
+				COUNT(DISTINCT device_hash),
 				DATETIME('now')
 			FROM submissions
 			GROUP BY m
@@ -296,9 +314,16 @@ func UpdateLeaderboardCache() {
 		}
 	}
 
-	// Global Top 100
+	// Global Top 100 Unique Devices
 	var global []BenchSubmission
-	if err := db.Unsafe().Select(&global, "SELECT * FROM submissions ORDER BY gpu_tflops_f32 DESC LIMIT 100"); err == nil {
+	query := `SELECT * FROM submissions ORDER BY gpu_tflops_f32 DESC LIMIT 100`
+	if DBDialect == DialectPostgres {
+		query = `SELECT DISTINCT ON (device_hash) * FROM submissions ORDER BY device_hash, gpu_tflops_f32 DESC LIMIT 100`
+	} else {
+		query = `SELECT * FROM submissions GROUP BY device_hash HAVING gpu_tflops_f32 = MAX(gpu_tflops_f32) ORDER BY gpu_tflops_f32 DESC LIMIT 100`
+	}
+
+	if err := db.Unsafe().Select(&global, query); err == nil {
 		fmt.Printf("[Leaderboard] Building Global Ranking with %d records.\n", len(global))
 		cache("global", global)
 	} else {
@@ -310,7 +335,14 @@ func UpdateLeaderboardCache() {
 	if err := db.Select(&countries, "SELECT country_code FROM global_stats_cache ORDER BY device_count DESC LIMIT 20"); err == nil {
 		for _, code := range countries {
 			var regional []BenchSubmission
-			if err := db.Unsafe().Select(&regional, "SELECT * FROM submissions WHERE country_code = ? ORDER BY gpu_tflops_f32 DESC LIMIT 100", code); err == nil {
+			rQuery := `SELECT * FROM submissions WHERE country_code = ? ORDER BY gpu_tflops_f32 DESC LIMIT 100`
+			if DBDialect == DialectPostgres {
+				rQuery = `SELECT DISTINCT ON (device_hash) * FROM submissions WHERE country_code = ? ORDER BY device_hash, gpu_tflops_f32 DESC LIMIT 100`
+			} else {
+				rQuery = `SELECT * FROM (SELECT * FROM submissions WHERE country_code = ? ORDER BY gpu_tflops_f32 DESC) GROUP BY device_hash ORDER BY gpu_tflops_f32 DESC LIMIT 100`
+			}
+
+			if err := db.Unsafe().Select(&regional, rQuery, code); err == nil {
 				fmt.Printf("[Leaderboard] Building Regional Ranking (%s) with %d records.\n", code, len(regional))
 				cache(code, regional)
 			} else {
