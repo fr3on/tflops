@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -141,7 +142,11 @@ func main() {
 		c.JSON(http.StatusOK, submission)
 	})
 
-	r.Run(":8000")
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "80"
+	}
+	r.Run(":" + port)
 }
 
 func StartAggregator() {
