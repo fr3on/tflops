@@ -158,7 +158,7 @@ jobs:
           REMOTE_PORT: ${{ secrets.DEPLOY_PORT_API || 22 }}
           TARGET_DIR: /var/www/tflops-api
         run: |
-          sshpass -p "$SSH_PASSWORD" ssh -p $REMOTE_PORT -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_HOST "mkdir -p $TARGET_DIR"
+          sshpass -p "$SSH_PASSWORD" ssh -p $REMOTE_PORT -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_HOST "sudo systemctl stop tflops-api || true && mkdir -p $TARGET_DIR"
           sshpass -p "$SSH_PASSWORD" scp -P $REMOTE_PORT -o StrictHostKeyChecking=no ./api/tflops-api ./api/tflops-api.service $REMOTE_USER@$REMOTE_HOST:$TARGET_DIR/
           sshpass -p "$SSH_PASSWORD" ssh -p $REMOTE_PORT -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_HOST "chmod +x $TARGET_DIR/tflops-api"
       - name: Restart Service
