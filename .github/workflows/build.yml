@@ -1,4 +1,4 @@
-name: TFLOPS Multi-Platform Build
+name: TFLOPS Production CI/CD
 
 on:
   push:
@@ -8,130 +8,24 @@ on:
 
 jobs:
   build-api:
-    name: Build Go API (Linux)
+    name: Build Go API
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25'
+          go-version: '1.22'
+          cache-dependency-path: api/go.sum
       - name: Build API
         working-directory: ./api
         run: |
-          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o ../tflops-api .
-      - name: Upload Artifact
+          GOOS=linux GOARCH=amd64 go build -o tflops-api .
+      - name: Upload API Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tflops-api-linux
-          path: tflops-api
-
-  build-plugin:
-    name: Build Rust Plugin (${{ matrix.target }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - target: x86_64-unknown-linux-musl
-            os: ubuntu-latest
-          - target: aarch64-apple-darwin
-            os: macos-latest
-          - target: x86_64-apple-darwin
-            os: macos-latest
-          - target: x86_64-pc-windows-gnu
-            os: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-          
-      - name: Install cross (for Linux/Windows)
-        if: matrix.os == 'ubuntu-latest'
-        run: cargo install cross
-        
-      - name: Build Plugin (Cross)
-        if: matrix.os == 'ubuntu-latest'
-        working-directory: ./plugin
-        run: cross build --release --target ${{ matrix.target }}
-        
-      - name: Build Plugin (MacOS)
-        if: matrix.os == 'macos-latest'
-        working-directory: ./plugin
-        run: cargo build --release --target ${{ matrix.target }}
-        
-      - name: Locate and Rename
-        id: locate
-        run: |
-          TARGET_DIR="target/${{ matrix.target }}/release"
-          BINARY_NAME="tflops"
-          if [[ "${{ matrix.target }}" == *"windows"* ]]; then
-            BINARY_NAME="tflops.exe"
-          fi
-          cp "$TARGET_DIR/$BINARY_NAME" "tflops-${{ matrix.target }}"
-          echo "path=tflops-${{ matrix.target }}" >> $GITHUB_OUTPUT
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: tflops-plugin-${{ matrix.target }}
-          path: tflops-${{ matrix.target }}
-
-  build-website:
-    name: Build Next.js website
-    runs-on: ubuntu-latest
-    env:
-      NEXT_PUBLIC_API_URL: https://api.tflops.world
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: website/package-lock.json
-      - name: Install dependencies
-        working-directory: ./website
-        run: npm install --legacy-peer-deps
-      - name: Build website
-        working-directory: ./website
-        run: npm run build
-
-  deploy-website:
-    name: Deploy website
-    needs: build-website
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-    runs-on: ubuntu-latest
-    env:
-      NEXT_PUBLIC_API_URL: https://api.tflops.world
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: website/package-lock.json
-      - name: Install dependencies
-        working-directory: ./website
-        run: npm install --legacy-peer-deps
-      - name: Build website
-        working-directory: ./website
-        run: npm run build
-      - name: Install sshpass
-        run: sudo apt-get update && sudo apt-get install -y sshpass
-
-      - name: Deploy via SCP
-        env:
-          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
-          REMOTE_HOST: ${{ secrets.DEPLOY_HOST }}
-          REMOTE_USER: ${{ secrets.DEPLOY_USER }}
-          REMOTE_PORT: ${{ secrets.DEPLOY_PORT || 22 }}
-          REMOTE_PATH: ${{ secrets.DEPLOY_PATH }}
-        run: |
-          sshpass -p "$SSH_PASSWORD" scp -P $REMOTE_PORT -r -o StrictHostKeyChecking=no ./website/out/* $REMOTE_USER@$REMOTE_HOST:$REMOTE_PATH
+          name: api-binary
+          path: api/tflops-api
 
   build-cli:
     name: Build CLI Matrix
@@ -159,6 +53,7 @@ jobs:
       - name: Prepare Artifact
         run: |
           mkdir -p bin
+          # The output binary name depends on the OS
           if [ "${{ matrix.os }}" = "macos-latest" ]; then
             cp target/${{ matrix.target }}/release/tflops bin/${{ matrix.output_name }}
           else
@@ -170,9 +65,38 @@ jobs:
           name: ${{ matrix.output_name }}
           path: bin/${{ matrix.output_name }}
 
-  deploy-api:
-    name: Deploy API & CLI
-    needs: [build-website, build-api, build-cli]
+  build-website:
+    name: Build Website
+    needs: [build-cli]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: website/package-lock.json
+      - name: Install dependencies
+        working-directory: ./website
+        run: npm ci
+      - name: Download CLI Binaries
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: ./website/public/bin
+      - name: Build and Export Website
+        working-directory: ./website
+        run: npm run build
+      - name: Upload Website Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: website-out
+          path: website/out/
+
+  deploy:
+    name: Production Deployment
+    needs: [build-website, build-api]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     steps:
@@ -187,11 +111,6 @@ jobs:
         with:
           name: api-binary
           path: ./api
-      - name: Download CLI Binaries
-        uses: actions/download-artifact@v4
-        with:
-          merge-multiple: true
-          path: ./static/bin
       - name: Install sshpass
         run: sudo apt-get update && sudo apt-get install -y sshpass
       - name: Deploy Website
@@ -203,7 +122,7 @@ jobs:
           REMOTE_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
           sshpass -p "$SSH_PASSWORD" scp -P $REMOTE_PORT -r -o StrictHostKeyChecking=no ./website/out/* $REMOTE_USER@$REMOTE_HOST:$REMOTE_PATH
-      - name: Deploy API and CLI Binaries
+      - name: Deploy API Binary and Service
         env:
           SSH_PASSWORD: ${{ secrets.SSH_PASSWORD_API }}
           REMOTE_HOST: ${{ secrets.DEPLOY_HOST_API }}
@@ -211,13 +130,9 @@ jobs:
           REMOTE_PORT: ${{ secrets.DEPLOY_PORT_API || 22 }}
           TARGET_DIR: /var/www/tflops-api
         run: |
-          sshpass -p "$SSH_PASSWORD" ssh -p $REMOTE_PORT -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_HOST "
-            sudo systemctl stop tflops-api || true
-            mkdir -p $TARGET_DIR/static/bin
-          "
+          sshpass -p "$SSH_PASSWORD" ssh -p $REMOTE_PORT -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_HOST "sudo systemctl stop tflops-api || true && mkdir -p $TARGET_DIR"
           sshpass -p "$SSH_PASSWORD" scp -P $REMOTE_PORT -o StrictHostKeyChecking=no ./api/tflops-api ./api/tflops-api.service $REMOTE_USER@$REMOTE_HOST:$TARGET_DIR/
-          sshpass -p "$SSH_PASSWORD" scp -P $REMOTE_PORT -r -o StrictHostKeyChecking=no ./static/bin/* $REMOTE_USER@$REMOTE_HOST:$TARGET_DIR/static/bin/
-          sshpass -p "$SSH_PASSWORD" ssh -p $REMOTE_PORT -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_HOST "chmod +x $TARGET_DIR/tflops-api $TARGET_DIR/static/bin/*"
+          sshpass -p "$SSH_PASSWORD" ssh -p $REMOTE_PORT -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_HOST "chmod +x $TARGET_DIR/tflops-api"
       - name: Restart Service
         env:
           SSH_PASSWORD: ${{ secrets.SSH_PASSWORD_API }}
@@ -232,4 +147,3 @@ jobs:
             sudo systemctl enable tflops-api
             sudo systemctl restart tflops-api
           "
-
