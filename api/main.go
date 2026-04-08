@@ -298,6 +298,8 @@ func UpdateLeaderboardCache() {
 	var global []BenchSubmission
 	if err := db.Select(&global, "SELECT * FROM submissions ORDER BY gpu_tflops_f32 DESC LIMIT 100"); err == nil {
 		cache("global", global)
+	} else {
+		fmt.Printf("[Leaderboard] Global SELECT Error: %v\n", err)
 	}
 
 	// Per-Country Top 100 for top 20 active countries
@@ -307,8 +309,12 @@ func UpdateLeaderboardCache() {
 			var regional []BenchSubmission
 			if err := db.Select(&regional, "SELECT * FROM submissions WHERE country_code = ? ORDER BY gpu_tflops_f32 DESC LIMIT 100", code); err == nil {
 				cache(code, regional)
+			} else {
+				fmt.Printf("[Leaderboard] Regional SELECT Error (%s): %v\n", code, err)
 			}
 		}
+	} else {
+		fmt.Printf("[Leaderboard] Countries SELECT Error: %v\n", err)
 	}
 }
 
