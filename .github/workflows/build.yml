@@ -41,6 +41,9 @@ jobs:
           - os: macos-latest
             target: x86_64-apple-darwin
             output_name: tflops-macos-x86_64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            output_name: tflops-windows-x86_64.exe
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -56,8 +59,12 @@ jobs:
           # Try target-specific path first, then fallback to base release path
           if [ -f "target/${{ matrix.target }}/release/tflops" ]; then
             cp "target/${{ matrix.target }}/release/tflops" "bin/${{ matrix.output_name }}"
+          elif [ -f "target/${{ matrix.target }}/release/tflops.exe" ]; then
+            cp "target/${{ matrix.target }}/release/tflops.exe" "bin/${{ matrix.output_name }}"
           elif [ -f "target/release/tflops" ]; then
             cp "target/release/tflops" "bin/${{ matrix.output_name }}"
+          elif [ -f "target/release/tflops.exe" ]; then
+            cp "target/release/tflops.exe" "bin/${{ matrix.output_name }}"
           else
             echo "Error: Could not find tflops binary in any expected location"
             ls -R target

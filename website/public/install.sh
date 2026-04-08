@@ -25,24 +25,29 @@ ARCH=$(uname -m)
 case "$OS" in
     linux) OS_TYPE="linux" ;;
     darwin) OS_TYPE="macos" ;;
+    mingw*|msys*|cygwin*) OS_TYPE="windows"; BINARY_NAME="tflops.exe"; INSTALL_DIR="./" ;;
     *) echo -e "${RED}Error: Unsupported OS ($OS)${NC}"; exit 1 ;;
 esac
 
 case "$ARCH" in
-    x86_64) ARCH_TYPE="x86_64" ;;
+    x86_64|amd64) ARCH_TYPE="x86_64" ;;
     aarch64|arm64) ARCH_TYPE="aarch64" ;;
     *) echo -e "${RED}Error: Unsupported Architecture ($ARCH)${NC}"; exit 1 ;;
 esac
 
 # Construct download URL
-# Expecting binaries named like: tflops-macos-aarch64, tflops-linux-x86_64, etc.
-DOWNLOAD_URL="${BASE_URL}/${BINARY_NAME}-${OS_TYPE}-${ARCH_TYPE}"
+# Windows binaries have .exe suffix in the filename
+REMOTE_FILE="${BINARY_NAME}-${OS_TYPE}-${ARCH_TYPE}"
+if [[ "$OS_TYPE" == "windows" ]]; then
+    REMOTE_FILE="tflops-${OS_TYPE}-${ARCH_TYPE}.exe"
+fi
+DOWNLOAD_URL="${BASE_URL}/${REMOTE_FILE}"
 
 echo -e "Detecting Environment: ${GREEN}${OS_TYPE}/${ARCH_TYPE}${NC}"
-echo -e "Target Location:      ${GREEN}${INSTALL_DIR}/${BINARY_NAME}${NC}"
+echo -e "Target Location:      ${GREEN}${INSTALL_DIR}${NC}"
 
 # --- Installation ---
-TMP_BIN="/tmp/${BINARY_NAME}"
+TMP_BIN="./${BINARY_NAME}.tmp"
 
 echo -e "\nDownloading TFLOPS Intelligence Engine..."
 if ! curl -L -f -o "$TMP_BIN" "$DOWNLOAD_URL"; then
@@ -51,13 +56,19 @@ if ! curl -L -f -o "$TMP_BIN" "$DOWNLOAD_URL"; then
     exit 1
 fi
 
-chmod +x "$TMP_BIN"
-
-echo -e "Installing to system path (requires sudo)..."
-if sudo mv "$TMP_BIN" "$INSTALL_DIR/$BINARY_NAME"; then
-    echo -e "\n${GREEN}SUCCESS: TFLOPS Audit CLI installed successfully!${NC}"
-    echo -e "Run ${BLUE}${BINARY_NAME} --help${NC} to begin your hardware forensic audit."
+if [[ "$OS_TYPE" != "windows" ]]; then
+    chmod +x "$TMP_BIN"
+    echo -e "Installing to system path (requires sudo)..."
+    if sudo mv "$TMP_BIN" "$INSTALL_DIR/$BINARY_NAME"; then
+        echo -e "\n${GREEN}SUCCESS: TFLOPS Audit CLI installed successfully!${NC}"
+        echo -e "Run ${BLUE}${BINARY_NAME} --help${NC} to begin your hardware forensic audit."
+    else
+        echo -e "${RED}Error: Failed to move binary to $INSTALL_DIR. Check permissions.${NC}"
+        exit 1
+    fi
 else
-    echo -e "${RED}Error: Failed to move binary to $INSTALL_DIR. Check permissions.${NC}"
-    exit 1
+    # Windows/MinGW specific move
+    mv "$TMP_BIN" "./$BINARY_NAME"
+    echo -e "\n${GREEN}SUCCESS: TFLOPS Audit CLI downloaded to current directory!${NC}"
+    echo -e "Run ${BLUE}./${BINARY_NAME} --help${NC} to begin your hardware forensic audit."
 fi
