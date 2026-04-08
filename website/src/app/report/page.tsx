@@ -10,13 +10,21 @@ const formatNumber = (val: number) => {
   return new Intl.NumberFormat().format(val);
 };
 
-export default function ReportPage({ params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = use(params);
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
+
+function ReportContent() {
+  const searchParams = useSearchParams();
+  const idStr = searchParams.get("id");
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${BASE_API}/v1/submission/${resolvedParams.id}`)
+    if (!idStr) {
+      setLoading(false);
+      return;
+    }
+    fetch(`${BASE_API}/v1/submission/${idStr}`)
       .then(res => res.json())
       .then(d => {
         setData(d);
@@ -26,22 +34,22 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
         console.error(e);
         setLoading(false);
       });
-  }, [resolvedParams.id]);
+  }, [idStr]);
 
-  if (loading) return (
-    <div className="min-h-screen bg-[#fcf9f2] flex flex-col items-center justify-center p-20">
-      <div className="w-12 h-12 border-4 border-tech border-t-sage rounded-full animate-spin mb-6" />
-      <div className="mono-label animate-pulse">Retrieving Hardware Forensic Audit...</div>
-    </div>
-  );
-
-  if (!data || data.error) return (
+  if (!idStr || data?.error) return (
     <div className="min-h-screen bg-[#fcf9f2] flex flex-col items-center justify-center p-20 text-center">
       <h1 className="text-4xl font-bold text-rust mb-4">REDACTED // 404</h1>
       <p className="mono-label italic mb-8">Intelligence report not found in current epoch.</p>
       <Link href="/" className="px-6 py-2 border border-tech hover:bg-tech/10 transition-colors uppercase text-[10px] font-bold tracking-widest">
         Return to Global Census
       </Link>
+    </div>
+  );
+
+  if (loading) return (
+    <div className="min-h-screen bg-[#fcf9f2] flex flex-col items-center justify-center p-20">
+      <div className="w-12 h-12 border-4 border-tech border-t-sage rounded-full animate-spin mb-6" />
+      <div className="mono-label animate-pulse">Retrieving Hardware Forensic Audit...</div>
     </div>
   );
 
@@ -89,7 +97,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
           </div>
           <div className="text-right flex flex-col items-end">
             <div className="bg-black text-white px-4 py-2 font-mono text-xs mb-2">
-              ID: CM-{resolvedParams.id.padStart(6, '0')}
+              ID: CM-{idStr.padStart(6, '0')}
             </div>
             <div className="mono-label text-[10px] uppercase tracking-[0.2em] font-bold">
               Issued: {new Date(data.timestamp_utc).toLocaleDateString()}
@@ -166,7 +174,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
             </div>
             <div className="bg-tech/5 p-4 font-mono text-[9px] break-all leading-tight text-foreground/40 border border-tech/10">
               AUTH_SIG: {data.device_hash}<br />
-              CHASH_V2: 0x{resolvedParams.id.repeat(4)}...{data.device_hash.slice(-12)}
+              CHASH_V2: 0x{idStr.repeat(4).slice(0, 16)}...{data.device_hash.slice(-12)}
             </div>
           </div>
 
@@ -190,5 +198,18 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
       `}</style>
 
     </div>
+  );
+}
+
+export default function ReportPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#fcf9f2] flex flex-col items-center justify-center p-20">
+        <div className="w-12 h-12 border-4 border-tech border-t-sage rounded-full animate-spin mb-6" />
+        <div className="mono-label animate-pulse">Initializing Archival Secure Channel...</div>
+      </div>
+    }>
+      <ReportContent />
+    </Suspense>
   );
 }
