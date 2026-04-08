@@ -5,7 +5,7 @@ import Leaderboard from "@/components/Leaderboard";
 import HistoryChart from "@/components/HistoryChart";
 import RegistryLabel from "@/components/RegistryLabel";
 import { motion, AnimatePresence } from "framer-motion";
-import { BookOpen, Globe2, Layers, RefreshCw, Maximize, Minimize, X, Cpu, Zap, FileText, Search } from "lucide-react";
+import { BookOpen, Globe2, Layers, RefreshCw, Maximize, Minimize, X, Cpu, Zap, FileText, Search, Copy, Terminal, Check } from "lucide-react";
 
 const BASE_API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -39,6 +39,13 @@ export default function Home() {
 
   const leaderboardRef = useRef<HTMLDivElement>(null);
   const [inspectedItem, setInspectedItem] = useState<any | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const copyCommand = () => {
+    navigator.clipboard.writeText("curl -sSL https://tflops.world/install.sh | bash");
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -266,6 +273,40 @@ export default function Home() {
               <span className="text-sm font-bold uppercase tracking-widest mt-1">v0.0.1</span>
             </div>
           </div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="mt-16 w-full max-w-xl group relative"
+          >
+            <div className="absolute -inset-1 bg-gradient-to-r from-sage/20 via-rust/10 to-sage/20 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+            <div className="relative flex items-center bg-[#1a1a1a] text-white p-4 rounded-lg border border-white/10 shadow-2xl overflow-hidden">
+              <div className="flex items-center gap-3 shrink-0 mr-4 border-r border-white/10 pr-4">
+                <Terminal size={18} className="text-sage" />
+                <div className="flex gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-red-500/50" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/50" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-green-500/50" />
+                </div>
+              </div>
+              <code className="text-sm font-mono text-sage/90 flex-1 truncate text-left select-all">
+                curl -sSL https://tflops.world/install.sh | bash
+              </code>
+              <button
+                onClick={copyCommand}
+                className="ml-4 p-2 hover:bg-white/10 rounded-md transition-all cursor-pointer text-white/40 hover:text-white"
+                title="Copy to clipboard"
+              >
+                {copied ? <Check size={18} className="text-green-400" /> : <Copy size={18} />}
+              </button>
+            </div>
+            <div className="mt-3 flex items-center justify-center gap-4">
+              <span className="text-[10px] uppercase tracking-[0.2em] text-foreground/30 font-bold">Initiate Forensic Audit Vector</span>
+              <div className="h-px w-8 bg-tech/20" />
+              <span className="text-[9px] font-mono text-sage animate-pulse">Waiting for synchronization...</span>
+            </div>
+          </motion.div>
         </header>
 
         <section className="grid grid-cols-1 md:grid-cols-4 gap-0 border-t border-b border-tech mb-24 py-12">
