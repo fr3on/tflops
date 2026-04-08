@@ -24,15 +24,24 @@ func InitDB() {
 	dbURL := os.Getenv("DATABASE_URL")
 
 	if strings.HasPrefix(dbURL, "postgres://") || strings.HasPrefix(dbURL, "postgresql://") {
+		// Mask password for logging
+		maskedURL := dbURL
+		if parts := strings.Split(dbURL, "@"); len(parts) > 1 {
+			if subParts := strings.Split(parts[0], ":"); len(subParts) > 2 {
+				maskedURL = subParts[0] + ":" + subParts[1] + ":****@" + parts[1]
+			}
+		}
+		log.Printf("[Database] Connecting to PostgreSQL: %s\n", maskedURL)
 		db, err = sqlx.Connect("postgres", dbURL)
 		DBDialect = DialectPostgres
 	} else {
+		log.Println("[Database] No DATABASE_URL found. Falling back to local SQLite: ./tflops.db")
 		db, err = sqlx.Connect("sqlite", "./tflops.db?_journal=WAL&_busy_timeout=10000")
 		DBDialect = DialectSQLite
 	}
 
 	if err != nil {
-		log.Fatalln(err)
+		log.Fatalf("[Database] FATAL: Failed to connect to database: %v\n", err)
 	}
 
 	var schema string
