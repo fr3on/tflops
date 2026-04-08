@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -56,6 +57,10 @@ func main() {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
+
+		// Trigger real-time cache refresh
+		go RefreshCache()
+
 		c.JSON(http.StatusOK, gin.H{"accepted": true})
 	})
 
@@ -149,119 +154,126 @@ func main() {
 	r.Run(":" + port)
 }
 
+var refreshMutex sync.Mutex
+
+func RefreshCache() {
+	if !refreshMutex.TryLock() {
+		// Already refreshing, skip this trigger to debounce
+		return
+	}
+	defer refreshMutex.Unlock()
+
+	fmt.Println("[Aggregator] Updating global intelligence cache...")
+	start := time.Now()
+
+	var globalQuery string
+	var historyQuery string
+
+	if DBDialect == DialectPostgres {
+		globalQuery = `
+			WITH vendor_ranks AS (
+				SELECT country_code, manufacturer, COUNT(*) as cnt,
+				ROW_NUMBER() OVER (PARTITION BY country_code ORDER BY COUNT(*) DESC) as rn
+				FROM submissions
+				GROUP BY country_code, manufacturer
+			)
+			INSERT INTO global_stats_cache (
+				country_code, avg_score, device_count, top_score,
+				avg_power, avg_carbon, avg_ram, top_vendor, updated_at
+			)
+			SELECT 
+				s.country_code, 
+				AVG(s.gpu_tflops_f32), 
+				COUNT(s.id), 
+				MAX(s.gpu_tflops_f32),
+				AVG(s.estimated_power_w),
+				AVG(s.carbon_intensity),
+				AVG(s.ram_total_gb),
+				vr.manufacturer,
+				CURRENT_TIMESTAMP
+			FROM submissions s
+			LEFT JOIN vendor_ranks vr ON s.country_code = vr.country_code AND vr.rn = 1
+			GROUP BY s.country_code, vr.manufacturer
+			ON CONFLICT (country_code) DO UPDATE SET
+				avg_score = EXCLUDED.avg_score,
+				device_count = EXCLUDED.device_count,
+				top_score = EXCLUDED.top_score,
+				avg_power = EXCLUDED.avg_power,
+				avg_carbon = EXCLUDED.avg_carbon,
+				avg_ram = EXCLUDED.avg_ram,
+				top_vendor = EXCLUDED.top_vendor,
+				updated_at = EXCLUDED.updated_at`
+
+		historyQuery = `
+			INSERT INTO history_stats_cache (month, total_tflops, device_count, updated_at)
+			SELECT 
+				to_char(timestamp_utc, 'YYYY-MM') as m,
+				SUM(gpu_tflops_f32),
+				COUNT(id),
+				CURRENT_TIMESTAMP
+			FROM submissions
+			GROUP BY m
+			ON CONFLICT (month) DO UPDATE SET
+				total_tflops = EXCLUDED.total_tflops,
+				device_count = EXCLUDED.device_count,
+				updated_at = EXCLUDED.updated_at`
+	} else {
+		globalQuery = `
+			WITH vendor_ranks AS (
+				SELECT country_code, manufacturer, COUNT(*) as cnt,
+				ROW_NUMBER() OVER (PARTITION BY country_code ORDER BY COUNT(*) DESC) as rn
+				FROM submissions
+				GROUP BY country_code, manufacturer
+			)
+			REPLACE INTO global_stats_cache (
+				country_code, avg_score, device_count, top_score,
+				avg_power, avg_carbon, avg_ram, top_vendor, updated_at
+			)
+			SELECT 
+				s.country_code, 
+				AVG(s.gpu_tflops_f32), 
+				COUNT(s.id), 
+				MAX(s.gpu_tflops_f32),
+				AVG(s.estimated_power_w),
+				AVG(s.carbon_intensity),
+				AVG(s.ram_total_gb),
+				vr.manufacturer,
+				DATETIME('now')
+			FROM submissions s
+			LEFT JOIN vendor_ranks vr ON s.country_code = vr.country_code AND vr.rn = 1
+			GROUP BY s.country_code`
+
+		historyQuery = `
+			REPLACE INTO history_stats_cache (month, total_tflops, device_count, updated_at)
+			SELECT 
+				strftime('%Y-%m', timestamp_utc) as m,
+				SUM(gpu_tflops_f32),
+				COUNT(id),
+				DATETIME('now')
+			FROM submissions
+			GROUP BY m
+			ORDER BY m ASC`
+	}
+
+	if _, err := db.Exec(globalQuery); err != nil {
+		fmt.Printf("[Aggregator] Global Error: %v\n", err)
+	}
+	if _, err := db.Exec(historyQuery); err != nil {
+		fmt.Printf("[Aggregator] History Error: %v\n", err)
+	}
+
+	// 3. Update Leaderboard Cache (Global and Top Countries)
+	UpdateLeaderboardCache()
+
+	fmt.Printf("[Aggregator] Cache updated in %v\n", time.Since(start))
+}
+
 func StartAggregator() {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
-	runAggregation := func() {
-		fmt.Println("[Aggregator] Updating global intelligence cache...")
-		start := time.Now()
-
-		var globalQuery string
-		var historyQuery string
-
-		if DBDialect == DialectPostgres {
-			globalQuery = `
-				WITH vendor_ranks AS (
-					SELECT country_code, manufacturer, COUNT(*) as cnt,
-					ROW_NUMBER() OVER (PARTITION BY country_code ORDER BY COUNT(*) DESC) as rn
-					FROM submissions
-					GROUP BY country_code, manufacturer
-				)
-				INSERT INTO global_stats_cache (
-					country_code, avg_score, device_count, top_score,
-					avg_power, avg_carbon, avg_ram, top_vendor, updated_at
-				)
-				SELECT 
-					s.country_code, 
-					AVG(s.gpu_tflops_f32), 
-					COUNT(s.id), 
-					MAX(s.gpu_tflops_f32),
-					AVG(s.estimated_power_w),
-					AVG(s.carbon_intensity),
-					AVG(s.ram_total_gb),
-					vr.manufacturer,
-					CURRENT_TIMESTAMP
-				FROM submissions s
-				LEFT JOIN vendor_ranks vr ON s.country_code = vr.country_code AND vr.rn = 1
-				GROUP BY s.country_code, vr.manufacturer
-				ON CONFLICT (country_code) DO UPDATE SET
-					avg_score = EXCLUDED.avg_score,
-					device_count = EXCLUDED.device_count,
-					top_score = EXCLUDED.top_score,
-					avg_power = EXCLUDED.avg_power,
-					avg_carbon = EXCLUDED.avg_carbon,
-					avg_ram = EXCLUDED.avg_ram,
-					top_vendor = EXCLUDED.top_vendor,
-					updated_at = EXCLUDED.updated_at`
-
-			historyQuery = `
-				INSERT INTO history_stats_cache (month, total_tflops, device_count, updated_at)
-				SELECT 
-					to_char(timestamp_utc, 'YYYY-MM') as m,
-					SUM(gpu_tflops_f32),
-					COUNT(id),
-					CURRENT_TIMESTAMP
-				FROM submissions
-				GROUP BY m
-				ON CONFLICT (month) DO UPDATE SET
-					total_tflops = EXCLUDED.total_tflops,
-					device_count = EXCLUDED.device_count,
-					updated_at = EXCLUDED.updated_at`
-		} else {
-			globalQuery = `
-				WITH vendor_ranks AS (
-					SELECT country_code, manufacturer, COUNT(*) as cnt,
-					ROW_NUMBER() OVER (PARTITION BY country_code ORDER BY COUNT(*) DESC) as rn
-					FROM submissions
-					GROUP BY country_code, manufacturer
-				)
-				REPLACE INTO global_stats_cache (
-					country_code, avg_score, device_count, top_score,
-					avg_power, avg_carbon, avg_ram, top_vendor, updated_at
-				)
-				SELECT 
-					s.country_code, 
-					AVG(s.gpu_tflops_f32), 
-					COUNT(s.id), 
-					MAX(s.gpu_tflops_f32),
-					AVG(s.estimated_power_w),
-					AVG(s.carbon_intensity),
-					AVG(s.ram_total_gb),
-					vr.manufacturer,
-					DATETIME('now')
-				FROM submissions s
-				LEFT JOIN vendor_ranks vr ON s.country_code = vr.country_code AND vr.rn = 1
-				GROUP BY s.country_code`
-
-			historyQuery = `
-				REPLACE INTO history_stats_cache (month, total_tflops, device_count, updated_at)
-				SELECT 
-					strftime('%Y-%m', timestamp_utc) as m,
-					SUM(gpu_tflops_f32),
-					COUNT(id),
-					DATETIME('now')
-				FROM submissions
-				GROUP BY m
-				ORDER BY m ASC`
-		}
-
-		if _, err := db.Exec(globalQuery); err != nil {
-			fmt.Printf("[Aggregator] Global Error: %v\n", err)
-		}
-		if _, err := db.Exec(historyQuery); err != nil {
-			fmt.Printf("[Aggregator] History Error: %v\n", err)
-		}
-
-		// 3. Update Leaderboard Cache (Global and Top Countries)
-		UpdateLeaderboardCache()
-
-		fmt.Printf("[Aggregator] Cache updated in %v\n", time.Since(start))
-	}
-
-	runAggregation() // Initial run
 	for range ticker.C {
-		runAggregation()
+		RefreshCache()
 	}
 }
 

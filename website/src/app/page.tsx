@@ -119,7 +119,7 @@ export default function Home() {
 
   useEffect(() => {
     loadData(selectedCountry);
-    const interval = setInterval(() => loadData(selectedCountry), 30000);
+    const interval = setInterval(() => loadData(selectedCountry), 5000);
     return () => clearInterval(interval);
   }, [selectedCountry, selectedYear, loadData]);
 
