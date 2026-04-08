@@ -28,6 +28,9 @@ func main() {
 		MaxAge:           12 * time.Hour,
 	}))
 
+	// Serve static binaries for the one-line installer
+	r.Static("/static", "./static")
+
 	r.POST("/v1/submit", func(c *gin.Context) {
 		// ... submission logic remains same ...
 		var payload SubmitPayload

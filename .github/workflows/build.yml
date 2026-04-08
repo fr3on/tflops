@@ -133,24 +133,77 @@ jobs:
         run: |
           sshpass -p "$SSH_PASSWORD" scp -P $REMOTE_PORT -r -o StrictHostKeyChecking=no ./website/out/* $REMOTE_USER@$REMOTE_HOST:$REMOTE_PATH
 
+  build-cli:
+    name: Build CLI Matrix
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            output_name: tflops-linux-x86_64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            output_name: tflops-macos-aarch64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            output_name: tflops-macos-x86_64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Build CLI
+        run: cargo build --release --target ${{ matrix.target }}
+      - name: Prepare Artifact
+        run: |
+          mkdir -p bin
+          if [ "${{ matrix.os }}" = "macos-latest" ]; then
+            cp target/${{ matrix.target }}/release/tflops bin/${{ matrix.output_name }}
+          else
+            cp target/release/tflops bin/${{ matrix.output_name }}
+          fi
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.output_name }}
+          path: bin/${{ matrix.output_name }}
+
   deploy-api:
-    name: Deploy API
+    name: Deploy API & CLI
+    needs: [build-website, build-api, build-cli]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - name: Download Website
+        uses: actions/download-artifact@v4
         with:
-          go-version: '1.22'
-          cache-dependency-path: api/go.sum
-      - name: Build API for Linux
-        working-directory: ./api
-        run: |
-          GOOS=linux GOARCH=amd64 go build -o tflops-api .
+          name: website-out
+          path: ./website/out
+      - name: Download API
+        uses: actions/download-artifact@v4
+        with:
+          name: api-binary
+          path: ./api
+      - name: Download CLI Binaries
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: ./static/bin
       - name: Install sshpass
         run: sudo apt-get update && sudo apt-get install -y sshpass
-      - name: Transfer Binary and Service
+      - name: Deploy Website
+        env:
+          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
+          REMOTE_HOST: ${{ secrets.DEPLOY_HOST }}
+          REMOTE_USER: ${{ secrets.DEPLOY_USER }}
+          REMOTE_PORT: ${{ secrets.DEPLOY_PORT || 22 }}
+          REMOTE_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          sshpass -p "$SSH_PASSWORD" scp -P $REMOTE_PORT -r -o StrictHostKeyChecking=no ./website/out/* $REMOTE_USER@$REMOTE_HOST:$REMOTE_PATH
+      - name: Deploy API and CLI Binaries
         env:
           SSH_PASSWORD: ${{ secrets.SSH_PASSWORD_API }}
           REMOTE_HOST: ${{ secrets.DEPLOY_HOST_API }}
@@ -158,9 +211,13 @@ jobs:
           REMOTE_PORT: ${{ secrets.DEPLOY_PORT_API || 22 }}
           TARGET_DIR: /var/www/tflops-api
         run: |
-          sshpass -p "$SSH_PASSWORD" ssh -p $REMOTE_PORT -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_HOST "sudo systemctl stop tflops-api || true && mkdir -p $TARGET_DIR"
+          sshpass -p "$SSH_PASSWORD" ssh -p $REMOTE_PORT -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_HOST "
+            sudo systemctl stop tflops-api || true
+            mkdir -p $TARGET_DIR/static/bin
+          "
           sshpass -p "$SSH_PASSWORD" scp -P $REMOTE_PORT -o StrictHostKeyChecking=no ./api/tflops-api ./api/tflops-api.service $REMOTE_USER@$REMOTE_HOST:$TARGET_DIR/
-          sshpass -p "$SSH_PASSWORD" ssh -p $REMOTE_PORT -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_HOST "chmod +x $TARGET_DIR/tflops-api"
+          sshpass -p "$SSH_PASSWORD" scp -P $REMOTE_PORT -r -o StrictHostKeyChecking=no ./static/bin/* $REMOTE_USER@$REMOTE_HOST:$TARGET_DIR/static/bin/
+          sshpass -p "$SSH_PASSWORD" ssh -p $REMOTE_PORT -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_HOST "chmod +x $TARGET_DIR/tflops-api $TARGET_DIR/static/bin/*"
       - name: Restart Service
         env:
           SSH_PASSWORD: ${{ secrets.SSH_PASSWORD_API }}
