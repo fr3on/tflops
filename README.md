@@ -11,6 +11,14 @@ TFLOPS is a decentralized benchmarking and hardware intelligence platform design
 
 ## 🚀 Quick Start
 
+### ⚡ One-Line Installation (SSH/CLI)
+Audit any machine instantly by committing this one-liner to your terminal:
+```bash
+curl -sSL https://tflops.world/install.sh | bash
+```
+
+### 🛠 Manual Usage
+
 ### 1. Configure the Environment
 Copy the example environment file to `.env` and adjust your credentials:
 ```bash

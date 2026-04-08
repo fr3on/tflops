@@ -267,4 +267,10 @@ fn main() {
     } else if !args.json {
         println!("\nOFFLINE MODE: Forensics were not committed to the global census.");
     }
+
+    // 7. Persistence (Wait for user exit)
+    if !args.json {
+        println!("\n[FINISH] Audit complete. Press Enter to exit...");
+        let _ = std::io::stdin().read_line(&mut String::new());
+    }
 }
