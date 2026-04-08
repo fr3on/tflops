@@ -82,6 +82,8 @@ jobs:
   build-website:
     name: Build Next.js website
     runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_API_URL: https://api.tflops.world
     steps:
       - uses: actions/checkout@v4
       - name: Set up Node
@@ -102,6 +104,8 @@ jobs:
     needs: build-website
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_API_URL: https://api.tflops.world
     steps:
       - uses: actions/checkout@v4
       - name: Set up Node

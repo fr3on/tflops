@@ -17,7 +17,7 @@ func main() {
 	go StartAggregator() // Start background metrics calculation
 
 	r := gin.Default()
-    // ... CORS remains same ...
+	// ... CORS remains same ...
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"*"},
 		AllowMethods:     []string{"GET", "POST", "OPTIONS", "PUT"},
@@ -28,7 +28,7 @@ func main() {
 	}))
 
 	r.POST("/v1/submit", func(c *gin.Context) {
-        // ... submission logic remains same ...
+		// ... submission logic remains same ...
 		var payload SubmitPayload
 		if err := c.ShouldBindJSON(&payload); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -45,9 +45,9 @@ func main() {
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
 			payload.DeviceHash, timestamp, payload.CountryCode, payload.OS, payload.Arch,
 			payload.CPU["model"], payload.CPU["logical_cores"], payload.Bench["cpu_tflops_f32"],
-			fmt.Sprintf("%v", getFirstGpuField(payload.GPUs, "model")), 
+			fmt.Sprintf("%v", getFirstGpuField(payload.GPUs, "model")),
 			payload.Bench["gpu_tflops_f32"], payload.Bench["gpu_tflops_f16"],
-			payload.CPU["ram_total_gb"], getFirstGpuField(payload.GPUs, "vram_gb"), 
+			payload.CPU["ram_total_gb"], getFirstGpuField(payload.GPUs, "vram_gb"),
 			payload.EstimatedPowerW, payload.CarbonIntensity, payload.Manufacturer,
 			payload.Score, payload.SchemaVersion,
 		)
@@ -87,17 +87,17 @@ func main() {
 	})
 
 	r.GET("/v1/stats/global", func(c *gin.Context) {
-// ... same ...
+		// ... same ...
 		type GlobalStat struct {
-			Code            string    `db:"country_code" json:"code"`
-			AvgTflops       float64   `db:"avg_score" json:"avg_tflops"`
-			DeviceCount     int       `db:"device_count" json:"device_count"`
-			TopTflops       float64   `db:"top_score" json:"top_tflops"`
-			AvgPower        float64   `db:"avg_power" json:"avg_power"`
-			AvgCarbon       float64   `db:"avg_carbon" json:"avg_carbon"`
-			AvgRAM          float64   `db:"avg_ram" json:"avg_ram"`
-			TopVendor       string    `db:"top_vendor" json:"top_vendor"`
-			UpdatedAt       time.Time `db:"updated_at" json:"updated_at"`
+			Code        string    `db:"country_code" json:"code"`
+			AvgTflops   float64   `db:"avg_score" json:"avg_tflops"`
+			DeviceCount int       `db:"device_count" json:"device_count"`
+			TopTflops   float64   `db:"top_score" json:"top_tflops"`
+			AvgPower    float64   `db:"avg_power" json:"avg_power"`
+			AvgCarbon   float64   `db:"avg_carbon" json:"avg_carbon"`
+			AvgRAM      float64   `db:"avg_ram" json:"avg_ram"`
+			TopVendor   string    `db:"top_vendor" json:"top_vendor"`
+			UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 		}
 		var stats []GlobalStat
 		err := db.Select(&stats, `SELECT * FROM global_stats_cache`)
@@ -151,10 +151,10 @@ func StartAggregator() {
 	runAggregation := func() {
 		fmt.Println("[Aggregator] Updating global intelligence cache...")
 		start := time.Now()
-		
+
 		var globalQuery string
 		var historyQuery string
-		
+
 		if DBDialect == DialectPostgres {
 			globalQuery = `
 				WITH vendor_ranks AS (
@@ -189,7 +189,7 @@ func StartAggregator() {
 					avg_ram = EXCLUDED.avg_ram,
 					top_vendor = EXCLUDED.top_vendor,
 					updated_at = EXCLUDED.updated_at`
-			
+
 			historyQuery = `
 				INSERT INTO history_stats_cache (month, total_tflops, device_count, updated_at)
 				SELECT 
@@ -228,7 +228,7 @@ func StartAggregator() {
 				FROM submissions s
 				LEFT JOIN vendor_ranks vr ON s.country_code = vr.country_code AND vr.rn = 1
 				GROUP BY s.country_code`
-			
+
 			historyQuery = `
 				REPLACE INTO history_stats_cache (month, total_tflops, device_count, updated_at)
 				SELECT 
@@ -272,7 +272,7 @@ func UpdateLeaderboardCache() {
 				now = "CURRENT_TIMESTAMP"
 			}
 			db.Exec(db.Rebind(fmt.Sprintf(`INSERT INTO leaderboard_cache (submission_id, category, data, score, updated_at) 
-				VALUES (?, ?, ?, ?, %s)`, now)), 
+				VALUES (?, ?, ?, ?, %s)`, now)),
 				s.ID, category, string(data), s.GPUTflopsF32)
 		}
 	}
