@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+:root {
+  --background: #fcf9f2; /* High-end paper/cream */
+  --foreground: #1a1a1a; /* Academic Slate/Black */
+  --accent-sage: #3d7a5a;
+  --accent-rust: #8c4a4a;
+  --border-technical: #e8e4db;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-sage: var(--accent-sage);
+  --color-rust: var(--accent-rust);
+  --color-tech: var(--border-technical);
+  --font-serif: var(--font-serif);
+  --font-mono: var(--font-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-serif, serif);
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.6;
+}
+
+@layer base {
+  body {
+    @apply bg-background text-foreground antialiased selection:bg-sage/20;
+    transition: background-color 0.5s ease;
+  }
+}
+
+@layer components {
+  .appendix-sheet {
+    @apply border border-tech bg-[#fcf9f2] relative overflow-hidden;
+    /* Removed all shadows to match flat archival look */
+  }
+  
+  .mono-label {
+    @apply font-mono text-[10px] uppercase font-bold tracking-[0.2em] text-foreground/40;
+  }
+
+  .audit-card {
+    @apply p-6 border border-tech/30 bg-white/50 relative overflow-hidden;
+    /* Flat design: no shadow */
+  }
+}
+
+/* Custom Utilities */
+.text-tech { color: #8c4a4a; }
+.bg-tech { background-color: #f2efe6; }
+.border-tech { border-color: #e8e4db; }
+.text-sage { color: #3d7a5a; }
+.bg-sage { background-color: #3d7a5a; }
+.text-rust { color: #8c4a4a; }
+
+/* Technical Appendix Scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--tech);
+  border-radius: 0;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-sage);
+}
