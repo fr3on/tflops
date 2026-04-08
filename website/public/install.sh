@@ -8,7 +8,7 @@ set -e
 # --- Configuration ---
 BINARY_NAME="tflops"
 INSTALL_DIR="/usr/local/bin"
-BASE_URL="https://api.tflops.world/static/bin" # Update this to your binary hosting path
+BASE_URL="https://tflops.world/bin" # Hosted on the static website
 
 # --- Visuals ---
 BLUE='\033[0;34m'

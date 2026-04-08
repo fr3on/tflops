@@ -268,21 +268,6 @@ export default function Home() {
           </div>
         </header>
 
-        <div className="w-full mb-12 flex flex-col gap-2">
-          <div className="flex justify-between items-end mb-1">
-            <span className="mono-label !text-[9px] uppercase">Computational Milestone // Target: 1.0 PF</span>
-            <span className="mono-label !text-[9px]">84.2% Audit Complete</span>
-          </div>
-          <div className="h-1.5 w-full bg-tech/10 border border-tech/20 rounded-full overflow-hidden">
-            <motion.div 
-              initial={{ width: 0 }}
-              animate={{ width: "84.2%" }}
-              transition={{ duration: 2, ease: "easeOut" }}
-              className="h-full bg-sage"
-            />
-          </div>
-        </div>
-
         <section className="grid grid-cols-1 md:grid-cols-4 gap-0 border-t border-b border-tech mb-24 py-12">
           <div className="flex flex-col items-center border-b md:border-b-0 md:border-r border-tech pb-10 md:pb-0 relative group">
             <span className="mono-label mb-2">Global Capacity Index</span>
