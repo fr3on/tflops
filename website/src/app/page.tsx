@@ -280,8 +280,7 @@ export default function Home() {
             transition={{ delay: 0.2 }}
             className="mt-16 w-full max-w-xl group relative"
           >
-            <div className="absolute -inset-1 bg-gradient-to-r from-sage/20 via-rust/10 to-sage/20 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
-            <div className="relative flex items-center bg-[#1a1a1a] text-white p-4 rounded-lg border border-white/10 shadow-2xl overflow-hidden">
+            <div className="relative flex items-center bg-[#1a1a1a] text-white p-4 rounded-lg border border-white/10 overflow-hidden">
               <div className="flex items-center gap-3 shrink-0 mr-4 border-r border-white/10 pr-4">
                 <Terminal size={18} className="text-sage" />
                 <div className="flex gap-1.5">
