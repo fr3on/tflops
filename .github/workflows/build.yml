@@ -53,7 +53,16 @@ jobs:
       - name: Prepare Artifact
         run: |
           mkdir -p bin
-          cp target/${{ matrix.target }}/release/tflops bin/${{ matrix.output_name }}
+          # Try target-specific path first, then fallback to base release path
+          if [ -f "target/${{ matrix.target }}/release/tflops" ]; then
+            cp "target/${{ matrix.target }}/release/tflops" "bin/${{ matrix.output_name }}"
+          elif [ -f "target/release/tflops" ]; then
+            cp "target/release/tflops" "bin/${{ matrix.output_name }}"
+          else
+            echo "Error: Could not find tflops binary in any expected location"
+            ls -R target
+            exit 1
+          fi
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
