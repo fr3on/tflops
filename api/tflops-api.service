@@ -7,8 +7,8 @@ Type=simple
 User=root
 # Ensure this directory exists on the server
 WorkingDirectory=/var/www/tflops-api
-# Load environment variables from a secure file
-EnvironmentFile=/etc/tflops.env
+# Load environment variables from a secure file (optional for first run)
+EnvironmentFile=-/etc/tflops.env
 ExecStart=/var/www/tflops-api/tflops-api
 Restart=always
 RestartSec=5
