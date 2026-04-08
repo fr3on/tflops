@@ -4,9 +4,12 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/jmoiron/sqlx"
+	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -286,41 +289,54 @@ func isLaptopGpu(gpu GpuTemplate) bool {
 func main() {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
-	db, err := sqlx.Connect("sqlite3", "tflops.db")
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		dbURL = "tflops.db"
+	}
+
+	driver := "sqlite3"
+	if strings.Contains(dbURL, "postgres://") {
+		driver = "postgres"
+	}
+
+	db, err := sqlx.Connect(driver, dbURL)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	schema := `
-	DROP TABLE IF EXISTS submissions;
-	CREATE TABLE submissions (
-		id                INTEGER PRIMARY KEY AUTOINCREMENT,
-		device_hash       TEXT NOT NULL,
-		timestamp_utc     DATETIME NOT NULL,
-		country_code      TEXT,
-		os                TEXT,
-		arch              TEXT,
-		cpu_model         TEXT,
-		cpu_vendor        TEXT,
-		cpu_cores         INTEGER,
-		cpu_tflops        REAL,
-		gpu_model         TEXT,
-		gpu_vendor        TEXT,
-		gpu_tflops_f32    REAL,
-		gpu_tflops_f16    REAL,
-		ram_total_gb      INTEGER,
-		vram_total_gb     INTEGER,
-		estimated_power_w INTEGER,
-		carbon_intensity  REAL,
-		manufacturer      TEXT,
-		score             INTEGER,
-		schema_ver        TEXT
-	);
-	CREATE INDEX idx_submissions_timestamp ON submissions(timestamp_utc);
-	CREATE INDEX idx_submissions_country   ON submissions(country_code);
-	CREATE INDEX idx_submissions_gpu       ON submissions(gpu_model);
-	`
-	db.MustExec(schema)
+	// Only reset schema if using local SQLite
+	if driver == "sqlite3" {
+		schema := `
+		DROP TABLE IF EXISTS submissions;
+		CREATE TABLE submissions (
+			id                INTEGER PRIMARY KEY AUTOINCREMENT,
+			device_hash       TEXT NOT NULL,
+			timestamp_utc     DATETIME NOT NULL,
+			country_code      TEXT,
+			os                TEXT,
+			arch              TEXT,
+			cpu_model         TEXT,
+			cpu_vendor        TEXT,
+			cpu_cores         INTEGER,
+			cpu_tflops        REAL,
+			gpu_model         TEXT,
+			gpu_vendor        TEXT,
+			gpu_tflops_f32    REAL,
+			gpu_tflops_f16    REAL,
+			ram_total_gb      INTEGER,
+			vram_total_gb     INTEGER,
+			estimated_power_w INTEGER,
+			carbon_intensity  REAL,
+			manufacturer      TEXT,
+			score             INTEGER,
+			schema_ver        TEXT
+		);
+		CREATE INDEX idx_submissions_timestamp ON submissions(timestamp_utc);
+		CREATE INDEX idx_submissions_country   ON submissions(country_code);
+		CREATE INDEX idx_submissions_gpu       ON submissions(gpu_model);
+		`
+		db.MustExec(schema)
+	}
 
 	totalRows := 20000
 	batchSize := 1000
@@ -405,14 +421,14 @@ func main() {
 				randomDay := r.Intn(28)
 				recordTime := monthStart.AddDate(0, 0, randomDay)
 
-				_, err = tx.Exec(`
+				_, err = tx.Exec(db.Rebind(`
 					INSERT INTO submissions (
 						device_hash, timestamp_utc, country_code, os, arch,
 						cpu_model, cpu_vendor, cpu_cores, cpu_tflops,
 						gpu_model, gpu_vendor, gpu_tflops_f32, gpu_tflops_f16,
 						ram_total_gb, vram_total_gb, estimated_power_w, carbon_intensity,
 						manufacturer, score, schema_ver
-					) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+					) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`),
 					randomDeviceHash(r),
 					recordTime.Format("2006-01-02 15:04:05"),
 					country, oa.OS, oa.Arch,

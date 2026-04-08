@@ -83,7 +83,7 @@ jobs:
           cache-dependency-path: website/package-lock.json
       - name: Install dependencies
         working-directory: ./website
-        run: npm ci
+        run: npm ci --legacy-peer-deps
       - name: Download CLI Binaries
         uses: actions/download-artifact@v4
         with:
