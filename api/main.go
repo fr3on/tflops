@@ -298,7 +298,8 @@ func UpdateLeaderboardCache() {
 
 	// Global Top 100
 	var global []BenchSubmission
-	if err := db.Select(&global, "SELECT * FROM submissions ORDER BY gpu_tflops_f32 DESC LIMIT 100"); err == nil {
+	if err := db.Unsafe().Select(&global, "SELECT * FROM submissions ORDER BY gpu_tflops_f32 DESC LIMIT 100"); err == nil {
+		fmt.Printf("[Leaderboard] Building Global Ranking with %d records.\n", len(global))
 		cache("global", global)
 	} else {
 		fmt.Printf("[Leaderboard] Global SELECT Error: %v\n", err)
@@ -309,7 +310,8 @@ func UpdateLeaderboardCache() {
 	if err := db.Select(&countries, "SELECT country_code FROM global_stats_cache ORDER BY device_count DESC LIMIT 20"); err == nil {
 		for _, code := range countries {
 			var regional []BenchSubmission
-			if err := db.Select(&regional, "SELECT * FROM submissions WHERE country_code = ? ORDER BY gpu_tflops_f32 DESC LIMIT 100", code); err == nil {
+			if err := db.Unsafe().Select(&regional, "SELECT * FROM submissions WHERE country_code = ? ORDER BY gpu_tflops_f32 DESC LIMIT 100", code); err == nil {
+				fmt.Printf("[Leaderboard] Building Regional Ranking (%s) with %d records.\n", code, len(regional))
 				cache(code, regional)
 			} else {
 				fmt.Printf("[Leaderboard] Regional SELECT Error (%s): %v\n", code, err)
