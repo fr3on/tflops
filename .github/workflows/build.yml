@@ -92,7 +92,7 @@ jobs:
           cache-dependency-path: website/package-lock.json
       - name: Install dependencies
         working-directory: ./website
-        run: npm ci
+        run: npm install --legacy-peer-deps
       - name: Build website
         working-directory: ./website
         run: npm run build
