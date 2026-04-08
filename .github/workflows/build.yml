@@ -123,7 +123,6 @@ jobs:
       - name: Deploy via SSH
         uses: easingthemes/ssh-deploy@main
         with:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           PASSWORD: ${{ secrets.SSH_PASSWORD }}
           REMOTE_PORT: ${{ secrets.DEPLOY_PORT || 22 }}
           ARGS: "-avzr --delete"
