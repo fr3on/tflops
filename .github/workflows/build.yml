@@ -53,12 +53,7 @@ jobs:
       - name: Prepare Artifact
         run: |
           mkdir -p bin
-          # The output binary name depends on the OS
-          if [ "${{ matrix.os }}" = "macos-latest" ]; then
-            cp target/${{ matrix.target }}/release/tflops bin/${{ matrix.output_name }}
-          else
-            cp target/release/tflops bin/${{ matrix.output_name }}
-          fi
+          cp target/${{ matrix.target }}/release/tflops bin/${{ matrix.output_name }}
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
