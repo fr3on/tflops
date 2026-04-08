@@ -3,7 +3,8 @@ target/
 target_linux/
 target_windows/
 **/*.rs.bk
-Cargo.lock
+# Cargo.lock is tracked for reproducible builds
+# Cargo.lock
 
 # Go
 **/tflops-api
