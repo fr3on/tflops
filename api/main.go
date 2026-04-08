@@ -279,16 +279,19 @@ func UpdateLeaderboardCache() {
 
 	// Global Top 100
 	var global []BenchSubmission
-	db.Select(&global, "SELECT * FROM submissions ORDER BY gpu_tflops_f32 DESC LIMIT 100")
-	cache("global", global)
+	if err := db.Select(&global, "SELECT * FROM submissions ORDER BY gpu_tflops_f32 DESC LIMIT 100"); err == nil {
+		cache("global", global)
+	}
 
 	// Per-Country Top 100 for top 20 active countries
 	var countries []string
-	db.Select(&countries, "SELECT country_code FROM global_stats_cache ORDER BY device_count DESC LIMIT 20")
-	for _, code := range countries {
-		var regional []BenchSubmission
-		db.Select(&regional, "SELECT * FROM submissions WHERE country_code = ? ORDER BY gpu_tflops_f32 DESC LIMIT 100", code)
-		cache(code, regional)
+	if err := db.Select(&countries, "SELECT country_code FROM global_stats_cache ORDER BY device_count DESC LIMIT 20"); err == nil {
+		for _, code := range countries {
+			var regional []BenchSubmission
+			if err := db.Select(&regional, "SELECT * FROM submissions WHERE country_code = ? ORDER BY gpu_tflops_f32 DESC LIMIT 100", code); err == nil {
+				cache(code, regional)
+			}
+		}
 	}
 }
 

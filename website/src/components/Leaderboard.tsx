@@ -10,6 +10,13 @@ interface LeaderboardProps {
 }
 
 export default function Leaderboard({ data, onInspect, selectedId }: LeaderboardProps) {
+  if (!data || !Array.isArray(data) || data.length === 0) return (
+    <div className="p-12 flex flex-col items-center justify-center bg-tech/5 border border-dashed border-tech font-mono">
+      <div className="w-6 h-6 border-2 border-sage rounded-full animate-ping mb-4" />
+      <div className="text-[10px] uppercase tracking-widest text-foreground/40 italic">Awaiting Global Intelligence Feed...</div>
+    </div>
+  );
+
   // Calculate peak for relative capacity bars
   const maxTflops = Math.max(...data.map(item => item.gpu_tflops_f32 || item.cpu_tflops || 0.1), 1);
 
@@ -104,13 +111,6 @@ export default function Leaderboard({ data, onInspect, selectedId }: Leaderboard
                     >
                       <Search size={14} />
                     </button>
-                    <a href={`/report?id=${item.id}`} target="_blank" rel="noopener noreferrer"
-                      title="View Full Report"
-                      className={`p-2 rounded border transition-all ${isSelected ? 'bg-sage text-white border-sage' : 'border-tech text-foreground/20 hover:border-sage hover:text-sage'}`}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <FileText size={14} />
-                    </a>
                   </div>
                 </td>
               </tr>

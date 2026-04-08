@@ -10,9 +10,11 @@ type BenchSubmission struct {
 	OS               string    `db:"os" json:"os"`
 	Arch             string    `db:"arch" json:"arch"`
 	CPUModel         string    `db:"cpu_model" json:"cpu_model"`
+	CPUVendor        string    `db:"cpu_vendor" json:"cpu_vendor"`
 	CPUCores         int       `db:"cpu_cores" json:"cpu_cores"`
 	CPUTflops        float64   `db:"cpu_tflops" json:"cpu_tflops"`
 	GPUModel         string    `db:"gpu_model" json:"gpu_model"`
+	GPUVendor        string    `db:"gpu_vendor" json:"gpu_vendor"`
 	GPUTflopsF32     *float64  `db:"gpu_tflops_f32" json:"gpu_tflops_f32"`
 	GPUTflopsF16     *float64  `db:"gpu_tflops_f16" json:"gpu_tflops_f16"`
 	RAMTotalGB       int       `db:"ram_total_gb" json:"ram_total_gb"`
